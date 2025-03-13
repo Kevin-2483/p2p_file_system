@@ -779,7 +779,7 @@ def main():
             print(f"Error: Hostname cannot start with 'id'")
             sys.exit(1)
             
-        fs.register_node('127.0.0.1', args.port, hostname)
+        fs.register_node('127.0.0.1', args.port, hostname, args.key)
         
         # Start node cleanup thread
         cleanup = Thread(target=cleanup_thread, args=(fs,), daemon=True)
