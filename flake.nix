@@ -13,7 +13,7 @@
       {
         packages.default = pkgs.python3Packages.buildPythonApplication {
           pname = "p2p-fs";
-          version = "0.1.0";
+          version = "0.1.1";
           src = ./.;
           format = "setuptools";
 

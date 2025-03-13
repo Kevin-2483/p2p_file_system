@@ -1,5 +1,3 @@
-#https://gist.github.com/Kevin-2483/cf5efe7bebf831eebf2bde8583e97f74
-
 import xmlrpc.client
 import xmlrpc.server
 import sys
@@ -20,7 +18,8 @@ class P2PFileSystem:
         self.file_manager = FileManager()
         self.nodes_lock = Lock()
         self.security_key = key
-
+        self.local_node_key = None  # Store the local node's key
+        
     def get_next_available_id(self):
         # Find the smallest available ID
         used_ids = set(self.used_ids)
@@ -41,6 +40,11 @@ class P2PFileSystem:
         node_key = f"{ip_address}:{port}"
         
         with self.nodes_lock:
+            # Check if node already exists, just update timestamp if it does
+            if node_key in self.nodes:
+                self.nodes[node_key]['last_active'] = time.time()
+                return {'id': self.nodes[node_key]['id']}
+            
             # Check if hostname is already in use
             for node_info in self.nodes.values():
                 if node_info['hostname'] == hostname:
@@ -62,7 +66,21 @@ class P2PFileSystem:
                 'port': port,
                 'last_active': time.time()
             }
+            
+            # If this is a local node, store its key
+            if ip_address == '127.0.0.1' and port == self.port:
+                self.local_node_key = node_key
+                
             return {'id': next_id}
+
+    def heartbeat(self, ip_address, port):
+        """Update the last active timestamp for a node"""
+        node_key = f"{ip_address}:{port}"
+        with self.nodes_lock:
+            if node_key in self.nodes:
+                self.nodes[node_key]['last_active'] = time.time()
+                return {'status': 'success'}
+            return {'status': 'error', 'message': 'Node not found'}
 
     def unregister_node(self, ip_address, port):
         node_key = f"{ip_address}:{port}"
@@ -74,17 +92,20 @@ class P2PFileSystem:
                 return {'status': 'success', 'message': f'Node {node_key} has been removed'}
             return {'status': 'error', 'message': f'Node {node_key} does not exist'}
 
-    def cleanup_inactive_nodes(self, timeout=60):
+    def cleanup_inactive_nodes(self, timeout=120):  # Increased timeout to 120 seconds
         current_time = time.time()
         inactive_nodes = []
         
         with self.nodes_lock:
             for node_key, node_info in list(self.nodes.items()):
+                # Don't clean up the local node
+                if node_key == self.local_node_key:
+                    continue
+                    
                 if (current_time - node_info.get('last_active', 0)) > timeout:
-                    if node_info['ip'] != '127.0.0.1' or node_info['port'] != self.port:  # Do not clean up the local node
-                        inactive_nodes.append(node_key)
-                        self.used_ids.remove(node_info['id'])  # Remove ID from the used set
-                        del self.nodes[node_key]
+                    inactive_nodes.append(node_key)
+                    self.used_ids.remove(node_info['id'])  # Remove ID from the used set
+                    del self.nodes[node_key]
         
         return inactive_nodes
 
@@ -93,10 +114,27 @@ class P2PFileSystem:
                                                  allow_none=True)
         server.register_instance(self)
         print(f"P2P node started on port {self.port}...")
+        
+        # Start a thread for self-heartbeat to keep the local node active
+        self_heartbeat_thread = Thread(target=self.self_heartbeat, daemon=True)
+        self_heartbeat_thread.start()
+        
         try:
             server.serve_forever()
         except KeyboardInterrupt:
             print("\nServer shutting down...")
+            
+    def self_heartbeat(self):
+        """Send heartbeat for the local node"""
+        while True:
+            try:
+                if self.local_node_key:
+                    with self.nodes_lock:
+                        if self.local_node_key in self.nodes:
+                            self.nodes[self.local_node_key]['last_active'] = time.time()
+                time.sleep(10)  # Update every 10 seconds
+            except Exception:
+                time.sleep(5)
 
     def route_command(self, node_id, command, *args):
         # Find node information
@@ -351,12 +389,31 @@ class P2PClient:
         if self.hostname.lower().startswith('id'):
             print(f"Error: Hostname cannot start with 'id'")
             sys.exit(1)
-            
-        result = self.server.register_node(self.local_ip, self.port, self.hostname, self.security_key)
-        if 'error' in result:
-            print(f"Error: {result['error']}")
-            sys.exit(1)
-        self.node_id = result['id']
+        
+        # Try to register multiple times if initial attempts fail
+        retry_count = 0
+        max_retries = 5
+        while retry_count < max_retries:
+            try:
+                result = self.server.register_node(self.local_ip, self.port, self.hostname, self.security_key)
+                if 'error' in result:
+                    print(f"Error: {result['error']}")
+                    if 'Hostname' in result['error'] and retry_count < max_retries - 1:
+                        # Try with a different hostname
+                        self.hostname = f"{self.hostname}-{retry_count + 1}"
+                        print(f"Retrying with hostname: {self.hostname}")
+                        retry_count += 1
+                        continue
+                    sys.exit(1)
+                self.node_id = result['id']
+                break
+            except Exception as e:
+                print(f"Connection error: {str(e)}")
+                time.sleep(2)  # Wait before retry
+                retry_count += 1
+                if retry_count >= max_retries:
+                    print("Maximum retry attempts reached. Exiting.")
+                    sys.exit(1)
         
         # Initialize command history
         self.command_history = []
@@ -392,8 +449,10 @@ class P2PClient:
             try:
                 self.server.heartbeat(self.local_ip, self.port)
                 time.sleep(10)  # Send a heartbeat every 10 seconds
-            except Exception:
-                # Heartbeat failed, but don't print error messages to avoid interfering with the user interface
+            except Exception as e:
+                # Print error but continue trying
+                print(f"\nHeartbeat failed: {str(e)}")
+                print(f"{self.hostname}> ", end='', flush=True)
                 time.sleep(5)  # Wait a bit before retrying after failure
 
     def parse_path(self, path_spec):
@@ -653,7 +712,7 @@ def cleanup_thread(p2p_system):
     """Thread to periodically clean up inactive nodes"""
     while True:
         try:
-            inactive_nodes = p2p_system.cleanup_inactive_nodes(timeout=60)
+            inactive_nodes = p2p_system.cleanup_inactive_nodes(timeout=120)  # Increased timeout
             if inactive_nodes:
                 print(f"Cleaned up {len(inactive_nodes)} inactive nodes")
             time.sleep(30)  # Check every 30 seconds
@@ -674,6 +733,11 @@ def main():
         fs = P2PFileSystem(args.port, args.key)
         server_thread = Thread(target=fs.start_server, daemon=True)
         server_thread.start()
+        
+        # Wait a moment for the server to start
+        time.sleep(1)
+        
+        # Register local node (will be done by the client)
         
         # Then, connect to the central node as a client
         try:
