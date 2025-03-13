@@ -11,6 +11,37 @@
         };
       in
       {
+        packages.default = pkgs.python3Packages.buildPythonApplication {
+          pname = "p2p-fs";
+          version = "0.1.0";
+          src = ./.;
+          format = "setuptools";
+
+          # 创建setup.py文件
+          preBuild = ''
+            cat > setup.py << EOF
+            from setuptools import setup
+            
+            setup(
+                name="p2p-fs",
+                version="0.1.0",
+                py_modules=["p2p_fs"],
+                entry_points={
+                    "console_scripts": [
+                        "p2p-fs=p2p_fs:main",
+                    ],
+                },
+            )
+            EOF
+          '';
+          
+          meta = {
+            description = "A P2P File System implementation in Python";
+            license = pkgs.lib.licenses.mit;
+            platforms = pkgs.lib.platforms.all;
+          };
+        };
+        
         devShells.default = pkgs.mkShell {
           buildInputs = [
             pkgs.python3
