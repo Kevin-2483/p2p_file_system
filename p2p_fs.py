@@ -34,7 +34,9 @@ class P2PFileSystem:
             return {'error': 'Security key verification failed'}
             
         # Perform a cleanup first to reclaim IDs of disconnected nodes
+        print(f"Registering node: {ip_address}:{port} with hostname: {hostname}")
         self.cleanup_inactive_nodes()
+        print(f"Registering node: {ip_address}:{port} with hostname: {hostname}")
             
         # Use IP:port as the node identifier
         node_key = f"{ip_address}:{port}"
@@ -113,6 +115,9 @@ class P2PFileSystem:
         server = xmlrpc.server.SimpleXMLRPCServer(('0.0.0.0', self.port),
                                                  allow_none=True)
         server.register_instance(self)
+        # Register binary transfer methods
+        server.register_function(self.file_manager.binary_read, 'binary_read')
+        server.register_function(self.file_manager.binary_write, 'binary_write')
         print(f"P2P node started on port {self.port}...")
         
         # Start a thread for self-heartbeat to keep the local node active
@@ -165,6 +170,7 @@ class P2PFileSystem:
 
     def get_nodes(self):
         with self.nodes_lock:
+            print(f"Current nodes: {self.nodes}")
             return {ip: node_info for ip, node_info in self.nodes.items()}
     
     def get_node_by_hostname(self, hostname):
@@ -357,6 +363,22 @@ class FileManager:
             return f"Moved '{src_path}' to '{dst_path}'"
         except Exception as e:
             return f"Error: Failed to move file - {str(e)}"
+
+    def binary_read(self, path):
+        try:
+            with open(path, 'rb') as f:
+                return xmlrpc.client.Binary(f.read())
+        except Exception as e:
+            return f"Error: Failed to read file - {str(e)}"
+
+    def binary_write(self, path, binary_data):
+        try:
+            os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+            with open(path, 'wb') as f:
+                f.write(binary_data.data)
+            return f"File written to '{path}'"
+        except Exception as e:
+            return f"Error: Failed to write to file - {str(e)}"
 
 class P2PClient:
     def __init__(self, server_address, port, hostname=None, key=None):
@@ -654,22 +676,22 @@ class P2PClient:
                     else:
                         # Cross-node operation
                         if action == 'cp':
-                            content = self.server.route_command(src_node, 'cat', src_path)
+                            content = self.server.route_command(src_node, 'binary_read', src_path)
                             if isinstance(content, str) and content.startswith('Error:'):
                                 print(content)
                                 continue
                                 
-                            result = self.server.route_command(dst_node, 'echo', dst_path, content)
+                            result = self.server.route_command(dst_node, 'binary_write', dst_path, content)
                         else:  # mv
                             try:
                                 # 1. Read the source file content
-                                content = self.server.route_command(src_node, 'cat', src_path)
+                                content = self.server.route_command(src_node, 'binary_read', src_path)
                                 if isinstance(content, str) and content.startswith('Error:'):
                                     print(content)
                                     continue
                                 
                                 # 2. Write to the target file
-                                write_result = self.server.route_command(dst_node, 'echo', dst_path, content)
+                                write_result = self.server.route_command(dst_node, 'binary_write', dst_path, content)
                                 if isinstance(write_result, str) and write_result.startswith('Error:'):
                                     print(write_result)
                                     continue
