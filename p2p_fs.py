@@ -111,9 +111,31 @@ class P2PFileSystem:
         
         return inactive_nodes
 
-    def start_server(self):
-        server = xmlrpc.server.SimpleXMLRPCServer(('0.0.0.0', self.port),
-                                                 allow_none=True)
+    def start_server(self, port_specified=False):
+        current_port = self.port
+        max_port_attempts = 10  # 最多尝试10个端口
+        
+        for attempt in range(max_port_attempts):
+            try:
+                server = xmlrpc.server.SimpleXMLRPCServer(('0.0.0.0', current_port),
+                                                        allow_none=True)
+                self.port = current_port  # 更新实际使用的端口
+                break
+            except OSError as e:
+                # 如果是端口已被占用的错误
+                if port_specified:
+                    # 如果用户指定了端口但端口被占用，则报错退出
+                    print(f"Error: Port {current_port} is already in use. Please specify a different port.")
+                    sys.exit(1)
+                else:
+                    # 如果是默认端口且被占用，尝试下一个端口
+                    print(f"Port {current_port} is already in use, trying next port...")
+                    current_port += 1
+                    if attempt == max_port_attempts - 1:
+                        print(f"Error: Failed to find an available port after {max_port_attempts} attempts.")
+                        sys.exit(1)
+                    continue
+        
         server.register_instance(self)
         # Register binary transfer methods
         server.register_function(self.file_manager.binary_read, 'binary_read')
@@ -809,7 +831,9 @@ def main():
     if args.connect:
         # First, start a local server
         fs = P2PFileSystem(args.port, args.key)
-        server_thread = Thread(target=fs.start_server, daemon=True)
+        # 检查是否指定了端口
+        port_specified = '--port' in sys.argv
+        server_thread = Thread(target=fs.start_server, args=(port_specified,), daemon=True)
         server_thread.start()
         
         # Wait a moment for the server to start
@@ -842,7 +866,9 @@ def main():
         cleanup.start()
         
         try:
-            fs.start_server()
+            # 检查是否指定了端口
+            port_specified = '--port' in sys.argv
+            fs.start_server(port_specified)
         except KeyboardInterrupt:
             print("\nServer shutting down...")
 
