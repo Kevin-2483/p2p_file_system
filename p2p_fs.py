@@ -118,6 +118,14 @@ class P2PFileSystem:
         # Register binary transfer methods
         server.register_function(self.file_manager.binary_read, 'binary_read')
         server.register_function(self.file_manager.binary_write, 'binary_write')
+        # Register heartbeat method explicitly
+        server.register_function(self.heartbeat, 'heartbeat')
+        server.register_function(self.unregister_node, 'unregister_node')
+        server.register_function(self.get_nodes, 'get_nodes')
+        server.register_function(self.get_node_by_hostname, 'get_node_by_hostname')
+        server.register_function(self.register_node, 'register_node')
+        server.register_function(self.get_help, 'get_help')
+        server.register_function(self.route_command, 'route_command')
         print(f"P2P node started on port {self.port}...")
         
         # Start a thread for self-heartbeat to keep the local node active
