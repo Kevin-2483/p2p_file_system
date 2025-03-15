@@ -204,6 +204,7 @@ File Operation Commands (requires node ID or hostname prefix):
   ls idNode:path           - List directory contents (with file type indicators)
   tree idNode:path         - Display directory structure in a tree format
   cat idNode:path          - Display file content
+  pwd idNode:              - Display current working directory
   echo idNode:path content - Write content to a file
   cp srcIdNode:path dstIdNode:path - Copy a file
   mv srcIdNode:path dstIdNode:path - Move a file
@@ -248,8 +249,19 @@ Note: All path operations require a node ID or hostname prefix.
         
     def mv(self, src_path, dst_path):
         return self.file_manager.mv(src_path, dst_path)
+        
+    def pwd(self, path="."):
+        return self.file_manager.pwd(path)
 
 class FileManager:
+    def pwd(self, path="."):
+        try:
+            # 获取绝对路径
+            abs_path = os.path.abspath(path)
+            return abs_path
+        except Exception as e:
+            return f"Error: Failed to get current directory - {str(e)}"
+            
     def mkdir(self, path):
         try:
             os.makedirs(path, exist_ok=True)
@@ -554,7 +566,7 @@ class P2PClient:
                     print("-" * 60)
                     continue
 
-                if action in ['mkdir', 'rm', 'touch', 'ls', 'tree', 'cat']:
+                if action in ['mkdir', 'rm', 'touch', 'ls', 'tree', 'cat', 'pwd']:
                     if len(cmd) != 2:
                         print(f"Usage: {action} NodeID:path")
                         print(f"Example: {action} id1:/home or {action} hostname:/home")
