@@ -2,17 +2,17 @@
 
 ## Project Overview
 
-The P2P Distributed File System is a peer-to-peer file system built on XML-RPC, allowing multiple nodes to share and manage files.  The system supports basic file operations such as creating, reading, updating, and deleting files, as well as copying and moving files between different nodes.
+The P2P Distributed File System is a peer-to-peer file system built on XML-RPC, allowing multiple nodes to share and manage files. The system supports basic file operations such as creating, reading, updating, and deleting files, as well as copying and moving files between different nodes.
 
 Features:
 
--   Automatic node discovery and registration
--   Node addressing based on ID and hostname
--   Support for file operations across nodes
--   Command-line interface with tab auto-completion (for node IDs/hostnames)
--   Syntax highlighting for paths
--   Command history (stored in the `.p2p_history` file)
--   Optional secure connection verification
+- Automatic node discovery and registration
+- Node addressing based on ID and hostname
+- Support for file operations across nodes
+- Command-line interface with tab auto-completion (for node IDs/hostnames)
+- Syntax highlighting for paths
+- Command history (stored in the `.p2p_history` file)
+- Optional secure connection verification
 
 ## Architecture Design
 
@@ -20,26 +20,28 @@ The system consists of the following main components:
 
 1.  **P2PFileSystem**: The core server component, responsible for:
 
-    -   Node registration and management
-    -   Command routing
-    -   Forwarding of file operations
-2.  **FileManager**:  The file operation manager, implementing:
+    - Node registration and management
+    - Command routing
+    - Forwarding of file operations
 
-    -   Directory creation and deletion
-    -   File creation, reading, writing, and deletion
-    -   File copying and moving
+2.  **FileManager**: The file operation manager, implementing:
+
+    - Directory creation and deletion
+    - File creation, reading, writing, and deletion
+    - File copying and moving
+
 3.  **P2PClient**: The client component, providing:
 
-    -   Command-line interface
-    -   Command parsing and execution
-    -   Inter-node communication
+    - Command-line interface
+    - Command parsing and execution
+    - Inter-node communication
 
 ## Installation Instructions
 
 ### Prerequisites
 
--   Python 3.6 or higher
--   Standard library (no additional dependencies required)
+- Python 3.6 or higher
+- Standard library (no additional dependencies required)
 
 ### Getting the Code
 
@@ -64,10 +66,10 @@ python p2p_fs.py --port 8001 --connect <server-address>[:port] [--hostname <host
 
 ### Command-Line Arguments
 
--   `--port`: Specifies the listening port (default: 8000)
--   `--connect`: Connects to the specified server address.
--   `--hostname`: Specifies the hostname (optional, defaults to the system hostname).
--   `--key`:  The security key for connection verification (optional).
+- `--port`: Specifies the listening port (default: 8000)
+- `--connect`: Connects to the specified server address.
+- `--hostname`: Specifies the hostname (optional, defaults to the system hostname).
+- `--key`: The security key for connection verification (optional).
 
 ## Command Help
 
@@ -88,6 +90,7 @@ touch idNode:path        - Create an empty file.
 ls idNode:path           - List directory contents (with file type indicators).
 tree idNode:path         - Display directory structure in a tree format.
 cat idNode:path          - Display file contents.
+pwd idNode               - Display current working directory.
 echo idNode:path content - Write content to a file.
 cp srcIdNode:path dstIdNode:path - Copy a file.
 mv srcIdNode:path dstIdNode:path - Move a file.
@@ -164,11 +167,13 @@ client-node1> mkdir id2:/local
 ```
 
 7. Copy file from remote node to local:
+
 ```
 client-node1> cp id1:/shared/hello.txt id2:/local/hello_copy.txt
 ```
 
 8. Display the directory's tree:
+
 ```
 client-node1> tree id2:/
 local/
@@ -179,7 +184,7 @@ local/
 
 You can enter multi-line input mode using three backticks (```):
 
-```
+````
 client-node1> echo id1:/shared/script.py ```
 import os
 import sys
@@ -187,13 +192,13 @@ import sys
 print("Hello from P2P File System!")
 print(f"Python version: {sys.version}")
 print(f"Current directory: {os.getcwd()}")
-```
+````
 
 ## Advanced Features
 
 ### Secure Connections
 
-Use the `--key` argument to set a security key for the nodes.  Only nodes with the same key will be able to connect:
+Use the `--key` argument to set a security key for the nodes. Only nodes with the same key will be able to connect:
 
 ```bash
 # Central node

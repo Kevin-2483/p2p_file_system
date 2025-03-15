@@ -92,6 +92,7 @@ touch idNode:path        - 创建空文件
 ls idNode:path           - 列出目录内容（带文件类型指示符）
 tree idNode:path         - 以树形格式显示目录结构
 cat idNode:path          - 显示文件内容
+pwd idNode               - 显示当前工作目录
 echo idNode:path content - 将内容写入文件
 cp srcIdNode:path dstIdNode:path - 复制文件
 mv srcIdNode:path dstIdNode:path - 移动文件

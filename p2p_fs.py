@@ -204,7 +204,7 @@ File Operation Commands (requires node ID or hostname prefix):
   ls idNode:path           - List directory contents (with file type indicators)
   tree idNode:path         - Display directory structure in a tree format
   cat idNode:path          - Display file content
-  pwd idNode:              - Display current working directory
+  pwd idNode               - Display current working directory
   echo idNode:path content - Write content to a file
   cp srcIdNode:path dstIdNode:path - Copy a file
   mv srcIdNode:path dstIdNode:path - Move a file
@@ -497,8 +497,32 @@ class P2PClient:
                 print(f"{self.hostname}> ", end='', flush=True)
                 time.sleep(5)  # Wait a bit before retrying after failure
 
-    def parse_path(self, path_spec):
-        """Parse the specified path format, supporting ID and hostname prefixes"""
+    def parse_path(self, path_spec, command=None):
+        """Parse the specified path format, supporting ID and hostname prefixes
+        For pwd command, it supports format without colon
+        """
+        # Special handling for pwd command without colon
+        if command == 'pwd' and ':' not in path_spec:
+            prefix = path_spec
+            path = "."
+            
+            # Check if it is an ID format (id followed by digits)
+            if prefix.lower().startswith('id') and prefix[2:].isdigit():
+                node_id = int(prefix[2:])
+                return node_id, path
+                
+            # Otherwise, consider it as a hostname
+            try:
+                node_info = self.server.get_node_by_hostname(prefix)
+                if not node_info:
+                    print(f"Error: Could not find a node with hostname '{prefix}'")
+                    return None, None
+                return node_info['id'], path
+            except Exception as e:
+                print(f"Error: An error occurred while parsing the path - {str(e)}")
+                return None, None
+        
+        # Normal path parsing for other commands
         if ':' not in path_spec:
             print(f"Error: Path must include a node identifier, in the format 'idN:path' or 'hostname:path'")
             return None, None
@@ -566,13 +590,25 @@ class P2PClient:
                     print("-" * 60)
                     continue
 
-                if action in ['mkdir', 'rm', 'touch', 'ls', 'tree', 'cat', 'pwd']:
+                if action in ['mkdir', 'rm', 'touch', 'ls', 'tree', 'cat']:
                     if len(cmd) != 2:
                         print(f"Usage: {action} NodeID:path")
                         print(f"Example: {action} id1:/home or {action} hostname:/home")
                         continue
                         
                     node_id, path = self.parse_path(cmd[1])
+                    if node_id is None:
+                        continue
+                        
+                    result = self.server.route_command(node_id, action, path)
+                    print(result)
+                elif action == 'pwd':
+                    if len(cmd) != 2:
+                        print(f"Usage: {action} NodeID")
+                        print(f"Example: {action} id1 or {action} hostname")
+                        continue
+                        
+                    node_id, path = self.parse_path(cmd[1], command='pwd')
                     if node_id is None:
                         continue
                         
